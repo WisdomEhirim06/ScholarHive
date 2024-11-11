@@ -1,0 +1,14 @@
+# ignore virtual environment
+venv/
+
+# igonore database
+db.sqlite3
+
+# ignore django files
+*.pyc
+__pycache__/
+
+.env
+
+# ignore vscode files
+.vscode/
