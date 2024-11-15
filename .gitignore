@@ -6,6 +6,7 @@ db.sqlite3
 
 # ignore django files
 *.pyc
+migrations/
 __pycache__/
 
 .env
