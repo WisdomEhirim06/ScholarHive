@@ -56,7 +56,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'features.middleware.AuthenticationMiddleware',
+    'features.views.session_authentication_middleware',
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -89,11 +89,17 @@ SESSION_COOKIE_AGE = 86400  # 1 day in seconds
 SESSION_COOKIE_SECURE = True  # Use only with HTTPS
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Strict'
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # JWT settings
 JWT_SECRET_KEY = settings.SECRET_KEY
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_DELTA = timedelta(days=1)
+
+
+CSRF_COOKIE_SECURE = True  # for HTTPS
+CSRF_USE_SESSIONS = True
+CSRF_COOKIE_HTTPONLY = True
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
