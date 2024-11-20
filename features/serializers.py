@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Students, Providers
+from .models import Students, Providers,Scholarship
 
 class StudentRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, max_length=128)
@@ -82,3 +82,23 @@ class ProviderLoginSerializer(serializers.Serializer):
             })
         
         return data
+    
+
+class ScholarshipSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Scholarship
+        fields = [
+            'id', 
+            'title', 
+            'description', 
+            'deadline', 
+            'requirements',
+            'educationLevel',
+            'max_applications',
+            'current_applicants', 
+            'status',
+            'provider',
+            'created_at', 
+            'updated_at'
+        ]
+        read_only_fields = ['id', 'current_applicants', 'status', 'provider', 'created_at', 'updated_at']
