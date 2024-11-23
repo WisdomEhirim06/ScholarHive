@@ -102,7 +102,7 @@ def user_logout(request):
 def get_session_status(request):
     if not request.session.get('is_authenticated', False):
         return Response({
-            'isAuthenticated': False,
+            'is_authenticated': False,
             'user': None
         })
     
@@ -113,7 +113,7 @@ def get_session_status(request):
         if user_type == 'student':
             student = Students.objects.get(id=user_id)
             return Response({
-                'isAuthenticated': True,
+                'is_authenticated': True,
                 'userType': 'student',
                 'user': {
                     'id': student.id,
@@ -126,7 +126,7 @@ def get_session_status(request):
         elif user_type == 'provider':
             provider = Providers.objects.get(id=user_id)
             return Response({
-                'isAuthenticated': True,
+                'is_authenticated': True,
                 'userType': 'provider',
                 'user': {
                     'id': provider.id,
@@ -139,7 +139,7 @@ def get_session_status(request):
         # If user not found, clear session
         request.session.flush()
         return Response({
-            'isAuthenticated': False,
+            'is_authenticated': False,
             'user': None
         })
     
@@ -167,21 +167,22 @@ def session_authentication_middleware(get_response):
 @api_view(['POST'])
 def create_scholarships(request):
     # Check if the user is authenticated as a provider
-    if not request.session.get('isAuthenticated', False) or request.session.get('user_type') != 'provider':
+    if not request.session.get('is_authenticated', False) or request.session.get('user_type') != 'provider':
         return Response({'error': 'Unauthorized. Only providers can create scholarships'}, status=status.HTTP_403_FORBIDDEN)
     
     # Now to obtain the provider
     try:
         provider = Providers.objects.get(id=request.session['user_id'])
     except Providers.DoesNotExist:
+        request.session.flush()
         return Response({'error': 'Provider account not found'}, status=status.HTTP_404_NOT_FOUND)
     
     scholarship_data = request.data.copy()
-    scholarship_data['provider'] = provider.id
+    scholarship_data['status'] = 'ACTIVE'
 
     serializer = ScholarshipSerializer(data=scholarship_data)
     if serializer.is_valid():
-        serializer.save()
+        serializer.save(provider=provider)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

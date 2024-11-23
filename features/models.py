@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, MinLengthValidator
 import datetime
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -62,15 +62,24 @@ class Scholarship(models.Model):
     provider = models.ForeignKey(Providers, on_delete=models.CASCADE, related_name='scholarships')
 
     # Basic scholarship information
-    title = models.CharField(max_length=200)
-    description = models.TextField()
+    title = models.CharField(max_length=100, validators=[MinLengthValidator(5, message="Titile must be at least 5 characters long.")])
+    description = models.TextField(validators=[
+            MinLengthValidator(50, message="Description must be at least 50 characters long.")
+        ])
     deadline = models.DateTimeField()
-    requirements = models.TextField()
+    requirements = models.TextField(validators=[
+            MinLengthValidator(30, message="Requirements must be at least 30 characters long.")
+        ])
     educationLevel = models.CharField(max_length=50, choices=EDUCATION_CHOICES, blank=True, null=True)
 
     # Tracking fields
-    max_applications = models.PositiveIntegerField(null=True, blank=True)
-    current_applicants = models.PositiveIntegerField(default=0)
+    max_applications = models.IntegerField(validators=[
+            MinValueValidator(1, message="Maximum applications must be at least 1"),
+            MaxValueValidator(10000, message="Maximum applications cannot exceed 10,000")
+        ],
+        default=1
+    )
+    current_applicants = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
