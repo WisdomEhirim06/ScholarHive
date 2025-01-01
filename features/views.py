@@ -1,10 +1,15 @@
 from rest_framework import status
-from . serializers import StudentLoginSerializer, StudentRegistrationSerializer, ProviderLoginSerializer, ProviderRegistrationSerializer, ScholarshipSerializer
+from . serializers import (
+    ProviderLoginSerializer, ProviderRegistrationSerializer, ScholarshipSerializer, 
+    StudentRegistrationSerializer, StudentLoginSerializer
+)
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.middleware.csrf import get_token
 from .models import Students, Providers, Scholarship
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from .utils import check_auth
 
 # For Student and Provider Registration
 @api_view(['POST'])
@@ -165,11 +170,9 @@ def session_authentication_middleware(get_response):
 
 
 @api_view(['POST'])
+@check_auth('provider')
 def create_scholarships(request):
     # Check if the user is authenticated as a provider
-    if not request.session.get('is_authenticated', False) or request.session.get('user_type') != 'provider':
-        return Response({'error': 'Unauthorized. Only providers can create scholarships'}, status=status.HTTP_403_FORBIDDEN)
-    
     # Now to obtain the provider
     try:
         provider = Providers.objects.get(id=request.session['user_id'])
@@ -188,60 +191,111 @@ def create_scholarships(request):
 
 
 @api_view(['PUT', 'PATCH'])
+@check_auth('provider')
 def update_scholarship(request, scholarship_id):
-    # Check if user is authenticated as a provider
-    if not request.session.get('is_authenticated', False) or request.session.get('user_type') != 'provider':
-        return Response({
-            'error': 'Unauthorized. Only providers can update scholarships.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    # Get the scholarship
+    """
+    Update a scholarship. PUT for complete update, PATCH for partial update.
+    Only the scholarship provider can update their own scholarships.
+    """
+    # Authentication check
     try:
-        scholarship = Scholarship.objects.get(id=scholarship_id)
+        scholarship = get_object_or_404(Scholarship, id=scholarship_id)
+        
+        # Authorization check - ensure provider owns the scholarship
+        if scholarship.provider.id != request.session['user_id']:
+            return Response({
+                'error': 'You do not have permission to update this scholarship.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if scholarship is in a state that allows updates
+        if scholarship.status in ['CLOSED', 'EXPIRED']:
+            return Response({
+                'error': f'Cannot update scholarship with status: {scholarship.status}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Handle different update types
+        if request.method == 'PUT':
+            serializer = ScholarshipSerializer(scholarship, data=request.data)
+        else:  # PATCH
+            serializer = ScholarshipSerializer(scholarship, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            # Additional validation
+            if 'deadline' in request.data:
+                deadline = serializer.validated_data['deadline']
+                if deadline < timezone.now():
+                    return Response({
+                        'error': 'Deadline cannot be in the past.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            if 'max_applications' in request.data:
+                max_apps = serializer.validated_data['max_applications']
+                if max_apps < scholarship.current_applicants:
+                    return Response({
+                        'error': 'Maximum applications cannot be less than current applicants.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Save the updated scholarship
+            updated_scholarship = serializer.save()
+            
+            # Update status based on conditions
+            if updated_scholarship.deadline < timezone.now():
+                updated_scholarship.status = 'EXPIRED'
+            elif updated_scholarship.current_applicants >= updated_scholarship.max_applications:
+                updated_scholarship.status = 'CLOSED'
+            else:
+                updated_scholarship.status = 'ACTIVE'
+            
+            updated_scholarship.save()
+            
+            return Response({
+                'message': 'Scholarship updated successfully',
+                'scholarship': ScholarshipSerializer(updated_scholarship).data
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     except Scholarship.DoesNotExist:
         return Response({
             'error': 'Scholarship not found.'
         }, status=status.HTTP_404_NOT_FOUND)
-    
-    # Ensure the provider owns the scholarship
-    if scholarship.provider.id != request.session['user_id']:
-        return Response({
-            'error': 'You do not have permission to update this scholarship.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    serializer = ScholarshipSerializer(scholarship, data=request.data, partial=True)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['DELETE'])
 def delete_scholarship(request, scholarship_id):
-    # Check if user is authenticated as a provider
+    """
+    Delete a scholarship. Only the scholarship provider can delete their own scholarships.
+    """
+    # Authentication check
     if not request.session.get('is_authenticated', False) or request.session.get('user_type') != 'provider':
         return Response({
             'error': 'Unauthorized. Only providers can delete scholarships.'
         }, status=status.HTTP_403_FORBIDDEN)
     
-    # Get the scholarship
     try:
-        scholarship = Scholarship.objects.get(id=scholarship_id)
+        scholarship = get_object_or_404(Scholarship, id=scholarship_id)
+        
+        # Authorization check - ensure provider owns the scholarship
+        if scholarship.provider.id != request.session['user_id']:
+            return Response({
+                'error': 'You do not have permission to delete this scholarship.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if scholarship has any applications before deletion
+        if scholarship.current_applicants > 0:
+            return Response({
+                'error': 'Cannot delete scholarship with existing applications.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Perform the deletion
+        scholarship.delete()
+        return Response({
+            'message': 'Scholarship deleted successfully.'
+        }, status=status.HTTP_204_NO_CONTENT)
+
     except Scholarship.DoesNotExist:
         return Response({
             'error': 'Scholarship not found.'
         }, status=status.HTTP_404_NOT_FOUND)
-    
-    # Ensure the provider owns the scholarship
-    if scholarship.provider.id != request.session['user_id']:
-        return Response({
-            'error': 'You do not have permission to delete this scholarship.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    scholarship.delete()
-    return Response({
-        'message': 'Scholarship deleted successfully.'
-    }, status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['GET'])
@@ -263,5 +317,6 @@ def list_all_scholarships(request):
     # This view can be accessed by anyone (students or providers)
     # Typically, you'd want to list only active scholarships
     scholarships = Scholarship.objects.filter(status='ACTIVE')
+    #about to handle pagination
     serializer = ScholarshipSerializer(scholarships, many=True)
     return Response(serializer.data)

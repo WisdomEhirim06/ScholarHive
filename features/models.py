@@ -26,6 +26,9 @@ class Students(models.Model):
 
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+    
+    def __str__(self):
+        return f"{self.firstName} {self.lastName}"
 
 
 class Providers(models.Model):
@@ -40,6 +43,9 @@ class Providers(models.Model):
 
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+    
+    def __str__(self):
+        return f"{self.organizationName} {self.organizationEmail}"
 
 
 # To create scholarship provider info for scholarships
