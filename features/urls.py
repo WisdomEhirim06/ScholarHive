@@ -9,10 +9,10 @@ urlpatterns = [
     path('logout/', views.user_logout, name='user_logout'),
     path('session-status/', views.get_session_status, name='get_session_status'),
     path('scholarships/create/', views.create_scholarships, name='create_scholarship'),
-    path('scholarships/<int:scholarship_id>/update/', views.update_scholarship, name='update_scholarship'),
-    path('scholarships/<int:scholarship_id>/delete/', views.delete_scholarship, name='delete_scholarship'),
-    path('scholarships/my-scholarships/', views.list_provider_scholarships, name='list_provider_scholarships'),
-    path('scholarships/all/', views.list_all_scholarships, name='list_all_scholarships'),
+    path('scholarships/update/<int:scholarship_id>/', views.update_scholarship, name='update_scholarship'),
+    path('scholarships/delete/<int:scholarship_id>/', views.delete_scholarship, name='delete_scholarship'),
+    path('scholarships/details/<scholarship_id>/', views.scholarship_detail, name='scholarship_details'),
+    path('scholarships/', views.list_scholarships, name='list_all_scholarships'),
     
 ]
 

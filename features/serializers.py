@@ -102,3 +102,36 @@ class ScholarshipSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
         read_only_fields = ['id', 'current_applicants', 'status', 'provider', 'created_at', 'updated_at']
+
+
+class ScholarshipListPreviewSerializer(serializers.ModelSerializer):
+    provider_name = serializers.CharField(source='provider.organizationName', read_only=True)
+
+    class Meta:
+        model = Scholarship
+        fields = [
+            'id',
+            'title',
+            'provider_name',
+            'deadline'
+        ]
+
+
+class ScholarshipDetailSerializer(serializers.ModelSerializer):
+    provider_name = serializers.CharField(source='provider.organizationName')
+   
+    class Meta:
+        model = Scholarship
+        fields = [
+            'id',
+            'title',
+            'provider_name',
+            'description',
+            'requirements',
+            'deadline',
+            'educationLevel',
+            'max_applications',
+            'current_applicants',
+            'created_at',
+            
+        ]

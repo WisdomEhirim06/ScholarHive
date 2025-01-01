@@ -1,7 +1,7 @@
 from rest_framework import status
 from . serializers import (
     ProviderLoginSerializer, ProviderRegistrationSerializer, ScholarshipSerializer, 
-    StudentRegistrationSerializer, StudentLoginSerializer
+    StudentRegistrationSerializer, StudentLoginSerializer, ScholarshipDetailSerializer, ScholarshipListPreviewSerializer
 )
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -298,25 +298,55 @@ def delete_scholarship(request, scholarship_id):
         }, status=status.HTTP_404_NOT_FOUND)
 
 
-@api_view(['GET'])
-def list_provider_scholarships(request):
-    # Check if user is authenticated as a provider
-    if not request.session.get('is_authenticated', False) or request.session.get('user_type') != 'provider':
-        return Response({
-            'error': 'Unauthorized. Only providers can view their scholarships.'
-        }, status=status.HTTP_403_FORBIDDEN)
+# @api_view(['GET'])
+# def list_provider_scholarships(request):
+#     # Check if user is authenticated as a provider
+#     if not request.session.get('is_authenticated', False) or request.session.get('user_type') != 'provider':
+#         return Response({
+#             'error': 'Unauthorized. Only providers can view their scholarships.'
+#         }, status=status.HTTP_403_FORBIDDEN)
     
-    # Get scholarships for the current provider
-    scholarships = Scholarship.objects.filter(provider_id=request.session['user_id'])
-    serializer = ScholarshipSerializer(scholarships, many=True)
-    return Response(serializer.data)
+#     # Get scholarships for the current provider
+#     scholarships = Scholarship.objects.filter(provider_id=request.session['user_id'])
+#     serializer = ScholarshipSerializer(scholarships, many=True)
+#     return Response(serializer.data)
+
+
 
 
 @api_view(['GET'])
-def list_all_scholarships(request):
-    # This view can be accessed by anyone (students or providers)
-    # Typically, you'd want to list only active scholarships
-    scholarships = Scholarship.objects.filter(status='ACTIVE')
-    #about to handle pagination
-    serializer = ScholarshipSerializer(scholarships, many=True)
+def list_scholarships(request):
+    """
+    List all active scholarships with basic preview information.
+    """
+    scholarships = Scholarship.objects.filter(
+        status='ACTIVE'
+    ).select_related('provider').order_by('deadline')
+    
+    serializer = ScholarshipListPreviewSerializer(scholarships, many=True)
     return Response(serializer.data)
+
+@api_view(['GET'])
+def scholarship_detail(request, scholarship_id):
+    """
+    Get complete detailed information about a specific scholarship.
+    """
+    try:
+        scholarship = Scholarship.objects.select_related('provider').get(id=scholarship_id)
+        
+        # Only provider can view their non-active scholarships
+        if scholarship.status != 'ACTIVE':
+            if not request.session.get('is_authenticated') or \
+               request.session.get('user_type') != 'provider' or \
+               request.session.get('user_id') != scholarship.provider.id:
+                return Response({
+                    'error': 'Scholarship not available'
+                }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = ScholarshipDetailSerializer(scholarship)
+        return Response(serializer.data)
+        
+    except Scholarship.DoesNotExist:
+        return Response({
+            'error': 'Scholarship not found'
+        }, status=status.HTTP_404_NOT_FOUND)
