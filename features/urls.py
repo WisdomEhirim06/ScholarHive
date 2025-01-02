@@ -11,7 +11,7 @@ urlpatterns = [
     path('scholarships/create/', views.create_scholarships, name='create_scholarship'),
     path('scholarships/update/<int:scholarship_id>/', views.update_scholarship, name='update_scholarship'),
     path('scholarships/delete/<int:scholarship_id>/', views.delete_scholarship, name='delete_scholarship'),
-    path('scholarships/details/<scholarship_id>/', views.scholarship_detail, name='scholarship_details'),
+    path('scholarships/details/<int:scholarship_id>/', views.scholarship_detail, name='scholarship_details'),
     path('scholarships/', views.list_scholarships, name='list_all_scholarships'),
     
 ]

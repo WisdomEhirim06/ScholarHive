@@ -126,6 +126,8 @@ class Scholarship(models.Model):
             self.status = 'EXPIRED'
         elif self.current_applicants >= self.max_applications:
             self.status = 'CLOSED'
+        elif not self.pk and self.status == 'DRAFT':
+            self.status = 'ACTIVE'
         
         super().save(*args, **kwargs)
 

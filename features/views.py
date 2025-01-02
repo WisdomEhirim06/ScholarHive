@@ -174,6 +174,10 @@ def session_authentication_middleware(get_response):
 def create_scholarships(request):
     # Check if the user is authenticated as a provider
     # Now to obtain the provider
+    user_type = request.session.get('user_type')
+    if user_type != 'provider':
+        return Response({'error': 'Only providers can create scholarships'}, status=status.HTTP_403_FORBIDDEN)
+    
     try:
         provider = Providers.objects.get(id=request.session['user_id'])
     except Providers.DoesNotExist:
@@ -185,7 +189,9 @@ def create_scholarships(request):
 
     serializer = ScholarshipSerializer(data=scholarship_data)
     if serializer.is_valid():
-        serializer.save(provider=provider)
+        scholarship = serializer.save(provider=provider)
+        scholarship.status = 'ACTIVE'
+        scholarship.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -336,6 +342,7 @@ def scholarship_detail(request, scholarship_id):
         
         # Only provider can view their non-active scholarships
         if scholarship.status != 'ACTIVE':
+            # i set it to active, remember to change it to active
             if not request.session.get('is_authenticated') or \
                request.session.get('user_type') != 'provider' or \
                request.session.get('user_id') != scholarship.provider.id:
