@@ -1,9 +1,11 @@
 # utils.py
+
 from functools import wraps
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Scholarship
 
+# TO check the authentication of a user type
 def check_auth(user_type):
     """
     Decorator to check if user is authenticated and has correct user type.

@@ -1,12 +1,13 @@
 from rest_framework import status
 from . serializers import (
     ProviderLoginSerializer, ProviderRegistrationSerializer, ScholarshipSerializer, 
-    StudentRegistrationSerializer, StudentLoginSerializer, ScholarshipDetailSerializer, ScholarshipListPreviewSerializer
+    StudentRegistrationSerializer, StudentLoginSerializer, ScholarshipDetailSerializer, ScholarshipListPreviewSerializer,
+    ApplicationFormCreateSerializer, ApplicationFormFieldSerializer
 )
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.middleware.csrf import get_token
-from .models import Students, Providers, Scholarship
+from .models import Students, Providers, Scholarship, ApplicationFormField, ScholarshipApplication
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from .utils import check_auth
@@ -304,18 +305,6 @@ def delete_scholarship(request, scholarship_id):
         }, status=status.HTTP_404_NOT_FOUND)
 
 
-# @api_view(['GET'])
-# def list_provider_scholarships(request):
-#     # Check if user is authenticated as a provider
-#     if not request.session.get('is_authenticated', False) or request.session.get('user_type') != 'provider':
-#         return Response({
-#             'error': 'Unauthorized. Only providers can view their scholarships.'
-#         }, status=status.HTTP_403_FORBIDDEN)
-    
-#     # Get scholarships for the current provider
-#     scholarships = Scholarship.objects.filter(provider_id=request.session['user_id'])
-#     serializer = ScholarshipSerializer(scholarships, many=True)
-#     return Response(serializer.data)
 
 
 
@@ -357,3 +346,120 @@ def scholarship_detail(request, scholarship_id):
         return Response({
             'error': 'Scholarship not found'
         }, status=status.HTTP_404_NOT_FOUND)
+    
+
+@api_view(['POST'])
+@check_auth('provider')
+def create_application_form(request, scholarship_id):
+    """
+    Allow providers to create/update application form for their scholarship
+    """
+    try:
+        scholarship = get_object_or_404(Scholarship, id=scholarship_id)
+        
+        # Verify provider owns this scholarship
+        if scholarship.provider.id != request.session['user_id']:
+            return Response({
+                'error': 'You do not have permission to modify this scholarship'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = ApplicationFormCreateSerializer(data=request.data, context={'scholarship': scholarship})
+        if serializer.is_valid():
+            serializer.save(scholarship=scholarship)
+            return Response({
+                'message': 'Application form created successfully'
+            }, status=status.HTTP_201_CREATED)
+            
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+    except Scholarship.DoesNotExist:
+        return Response({
+            'error': 'Scholarship not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['GET'])
+def get_application_form(request, scholarship_id):
+    """
+    Get application form fields for a scholarship
+    """
+    try:
+        scholarship = get_object_or_404(Scholarship, id=scholarship_id)
+        fields = ApplicationFormField.objects.filter(scholarship=scholarship)
+        serializer = ApplicationFormFieldSerializer(fields, many=True)
+        return Response(serializer.data)
+        
+    except Scholarship.DoesNotExist:
+        return Response({
+            'error': 'Scholarship not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+@check_auth('student')
+def submit_application(request, scholarship_id):
+    """
+    Allow students to submit scholarship applications
+    """
+    try:
+        scholarship = get_object_or_404(Scholarship, id=scholarship_id)
+        student = get_object_or_404(Students, id=request.session['user_id'])
+        
+        # Check if student already applied
+        if ScholarshipApplication.objects.filter(scholarship=scholarship, student=student).exists():
+            return Response({
+                'error': 'You have already applied for this scholarship'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate responses against form fields
+        form_fields = ApplicationFormField.objects.filter(scholarship=scholarship)
+        responses = request.data.get('responses', {})
+        files = request.FILES
+        
+        # Validate required fields
+        for field in form_fields:
+            if field.required and str(field.id) not in responses:
+                return Response({
+                    'error': f'Field {field.label} is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create application
+        application = ScholarshipApplication.objects.create(
+            scholarship=scholarship,
+            student=student,
+            responses=responses,
+            files={},  # Will be updated with file paths after upload
+            status='SUBMITTED',
+            submitted_at=timezone.now()
+        )
+        
+        # Handle file uploads
+        if files:
+            file_paths = {}
+            for field_id, file in files.items():
+                # Save file and store path
+                path = f'applications/{application.id}/{file.name}'
+                # Here you would implement file storage logic
+                file_paths[field_id] = path
+            
+            application.files = file_paths
+            application.save()
+        
+        # Update scholarship application count
+        scholarship.current_applicants += 1
+        scholarship.save()
+        
+        return Response({
+            'message': 'Application submitted successfully',
+            'application_id': application.id
+        }, status=status.HTTP_201_CREATED)
+        
+    except Scholarship.DoesNotExist:
+        return Response({
+            'error': 'Scholarship not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
+'''
+TODO: validation for SELECT option in custom field applications
+working on the FORM/DATA type
+making sure that students can not create application forms
+''' 
