@@ -32,7 +32,7 @@ class Students(models.Model):
 
 
 class Providers(models.Model):
-    organizationName = models.CharField(unique=True, max_length=25)
+    organizationName = models.CharField(unique=True, max_length=50)
     organizationEmail = models.EmailField(max_length=25)
     organizationWebsite = models.URLField()
     password = models.CharField(max_length=128)
@@ -135,5 +135,46 @@ class Scholarship(models.Model):
         return f"{self.title} by {self.provider.organizationName} is {self.status}"
 
 
+class ApplicationFormField(models.Model):
+    FIELD_TYPES = [
+        ('text', 'Text Input'),
+        ('textarea', 'Text Area'),
+        ('number', 'Number Input'),
+        ('select', 'Select Dropdown'),
+        ('file', 'File Upload'),
+        ('checkbox', 'Checkbox'),
+    ]
+
+    scholarship = models.ForeignKey(Scholarship, on_delete=models.CASCADE, related_name='form_fields')
+    field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
+    label = models.CharField(max_length=100)
+    required = models.BooleanField(default=True)
+    options = models.JSONField(null=True, blank=True)  # For select fields
+    order = models.IntegerField()
+    
+    class Meta:
+        ordering = ['order']
+
+
+class ScholarshipApplication(models.Model):
+    STATUS_CHOICES = [
+        ('DRAFT', 'Draft'),
+        ('SUBMITTED', 'Submitted'),
+        ('UNDER_REVIEW', 'Under Review'),
+        ('ACCEPTED', 'Accepted'),
+        ('REJECTED', 'Rejected')
+    ]
+
+    scholarship = models.ForeignKey(Scholarship, on_delete=models.CASCADE, related_name='applications')
+    student = models.ForeignKey(Students, on_delete=models.CASCADE, related_name='applications')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
+    responses = models.JSONField()  # Stores form responses
+    files = models.JSONField(default=dict)  # Stores file upload paths
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['scholarship', 'student']  # Prevent multiple applications
 
 # To create scholarship application response from students
