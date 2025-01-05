@@ -2,7 +2,7 @@ from rest_framework import status
 from . serializers import (
     ProviderLoginSerializer, ProviderRegistrationSerializer, ScholarshipSerializer, 
     StudentRegistrationSerializer, StudentLoginSerializer, ScholarshipDetailSerializer, ScholarshipListPreviewSerializer,
-    ApplicationFormCreateSerializer, ApplicationFormFieldSerializer
+    ApplicationFormCreateSerializer, ApplicationFormFieldSerializer, ScholarshipApplicationSerializer
 )
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -305,10 +305,6 @@ def delete_scholarship(request, scholarship_id):
         }, status=status.HTTP_404_NOT_FOUND)
 
 
-
-
-
-
 @api_view(['GET'])
 def list_scholarships(request):
     """
@@ -462,4 +458,154 @@ def submit_application(request, scholarship_id):
 TODO: validation for SELECT option in custom field applications
 working on the FORM/DATA type
 making sure that students can not create application forms
-''' 
+mplement password reset functionality for students and providers.
+Add email verification upon signup to enhance security and prevent spam registrations.
+Implement automatic status updates for scholarships based on deadlines (e.g., close applications when the deadline passes).
+Notify providers when their scholarship is approaching its deadline.
+Add a basic notification system:
+Notify students when their application status changes.
+Notify providers about new applications.
+Optionally implement a messaging system to facilitate communication between providers and students.
+'''
+
+
+@api_view(['GET'])
+@check_auth('provider')
+def list_scholarship_applications(request, scholarship_id):
+    """
+    List all applications for a specific scholarship
+    Only accessible by the scholarship provider
+    """
+    try:
+        scholarship = get_object_or_404(Scholarship, id=scholarship_id)
+        
+        # Verify provider owns this scholarship
+        if scholarship.provider.id != request.session['user_id']:
+            return Response({
+                'error': 'You do not have permission to view these applications'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get applications with optional status filter
+        status_filter = request.GET.get('status', None)
+        applications = ScholarshipApplication.objects.filter(scholarship=scholarship)
+        
+        if status_filter:
+            applications = applications.filter(status=status_filter)
+        
+        applications = applications.order_by('-submitted_at')
+        
+        serializer = ScholarshipApplicationSerializer(applications, many=True)
+        return Response({
+            'total_applications': applications.count(),
+            'applications': serializer.data
+        })
+        
+    except Scholarship.DoesNotExist:
+        return Response({
+            'error': 'Scholarship not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['GET'])
+@check_auth('provider')
+def get_application_detail(request, application_id):
+    """
+    Get detailed information about a specific application
+    Only accessible by the scholarship provider
+    """
+    try:
+        application = get_object_or_404(ScholarshipApplication, id=application_id)
+        
+        # Verify provider owns the scholarship
+        if application.scholarship.provider.id != request.session['user_id']:
+            return Response({
+                'error': 'You do not have permission to view this application'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = ScholarshipApplicationSerializer(application)
+        return Response(serializer.data)
+        
+    except ScholarshipApplication.DoesNotExist:
+        return Response({
+            'error': 'Application not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+@check_auth('provider')
+def review_application(request, application_id):
+    """
+    Review an application (accept/reject)
+    Only accessible by the scholarship provider
+    """
+    try:
+        application = get_object_or_404(ScholarshipApplication, id=application_id)
+        
+        # Verify provider owns the scholarship
+        if application.scholarship.provider.id != request.session['user_id']:
+            return Response({
+                'error': 'You do not have permission to review this application'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Validate status
+        new_status = request.data.get('status')
+        if new_status not in ['ACCEPTED', 'REJECTED']:
+            return Response({
+                'error': 'Invalid status. Must be either ACCEPTED or REJECTED'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update application
+        application.status = new_status
+        application.reviewed_at = timezone.now()
+        application.review_notes = request.data.get('notes', '')
+        application.save()
+        
+        serializer = ScholarshipApplicationSerializer(application)
+        return Response({
+            'message': f'Application {new_status.lower()}',
+            'application': serializer.data
+        })
+        
+    except ScholarshipApplication.DoesNotExist:
+        return Response({
+            'error': 'Application not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['GET'])
+@check_auth('student')
+def list_student_applications(request):
+    """
+    List all applications submitted by the current student
+    """
+    try:
+        applications = ScholarshipApplication.objects.filter(
+            student_id=request.session['user_id']
+        ).order_by('-submitted_at')
+        
+        serializer = ScholarshipApplicationSerializer(applications, many=True)
+        return Response(serializer.data)
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@check_auth('student')
+def get_application_status(request, application_id):
+    """
+    Get status of a specific application
+    Only accessible by the student who submitted the application
+    """
+    try:
+        application = get_object_or_404(
+            ScholarshipApplication,
+            id=application_id,
+            student_id=request.session['user_id']
+        )
+        
+        serializer = ScholarshipApplicationSerializer(application)
+        return Response(serializer.data)
+        
+    except ScholarshipApplication.DoesNotExist:
+        return Response({
+            'error': 'Application not found'
+        }, status=status.HTTP_404_NOT_FOUND)
