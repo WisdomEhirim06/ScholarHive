@@ -173,6 +173,8 @@ class ScholarshipApplication(models.Model):
     submitted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(null=True, blank=True)
 
     class Meta:
         unique_together = ['scholarship', 'student']  # Prevent multiple applications
