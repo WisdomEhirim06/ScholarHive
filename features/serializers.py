@@ -167,3 +167,55 @@ class ScholarshipApplicationSerializer(serializers.ModelSerializer):
         fields = ['id', 'scholarship', 'student', 'status', 'responses', 'files', 
                  'submitted_at', 'created_at', 'updated_at']
         read_only_fields = ['student', 'status', 'submitted_at', 'created_at', 'updated_at']
+
+
+
+class StudentProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Students
+        fields = ['id', 'firstName', 'lastName', 'email', 'educationLevel']
+
+class ApplicationFormFieldSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ApplicationFormField
+        fields = ['id', 'field_type', 'label', 'required', 'options', 'order']
+
+class ScholarshipApplicationSerializer(serializers.ModelSerializer):
+    student = StudentProfileSerializer(read_only=True)
+    form_fields = serializers.SerializerMethodField()
+    scholarship_title = serializers.CharField(source='scholarship.title', read_only=True)
+    provider_name = serializers.CharField(source='scholarship.provider.organizationName', read_only=True)
+
+    class Meta:
+        model = ScholarshipApplication
+        fields = [
+            'id', 
+            'scholarship', 
+            'student', 
+            'status', 
+            'responses', 
+            'files', 
+            'submitted_at', 
+            'created_at', 
+            'updated_at', 
+            'reviewed_at', 
+            'review_notes',
+            'scholarship_title',
+            'provider_name',
+            'form_fields'
+        ]
+        read_only_fields = ['student', 'submitted_at', 'created_at', 'updated_at', 'scholarship_title', 'provider_name', 'form_fields']
+
+    def get_student(self, obj):
+        student = obj.student
+        return {
+            'id': student.id,
+            'firstName': student.firstName,
+            'lastName': student.lastName,
+            'email': student.email,
+            'educationLevel': student.educationLevel
+        }
+
+    def get_form_fields(self, obj):
+        fields = ApplicationFormField.objects.filter(scholarship=obj.scholarship)
+        return ApplicationFormFieldSerializer(fields, many=True).data
