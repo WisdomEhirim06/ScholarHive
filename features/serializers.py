@@ -161,24 +161,12 @@ class ApplicationFormCreateSerializer(serializers.Serializer):
         
         return fields
 
-class ScholarshipApplicationSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ScholarshipApplication
-        fields = ['id', 'scholarship', 'student', 'status', 'responses', 'files', 
-                 'submitted_at', 'created_at', 'updated_at']
-        read_only_fields = ['student', 'status', 'submitted_at', 'created_at', 'updated_at']
-
-
 
 class StudentProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Students
         fields = ['id', 'firstName', 'lastName', 'email', 'educationLevel']
 
-class ApplicationFormFieldSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ApplicationFormField
-        fields = ['id', 'field_type', 'label', 'required', 'options', 'order']
 
 class ScholarshipApplicationSerializer(serializers.ModelSerializer):
     student = StudentProfileSerializer(read_only=True)
