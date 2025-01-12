@@ -33,7 +33,7 @@ class Students(models.Model):
 
 class Providers(models.Model):
     organizationName = models.CharField(unique=True, max_length=50)
-    organizationEmail = models.EmailField(max_length=25)
+    organizationEmail = models.EmailField(max_length=30)
     organizationWebsite = models.URLField()
     password = models.CharField(max_length=128)
     #last_login = models.DateTimeField(default=datetime.now)
