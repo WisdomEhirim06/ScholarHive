@@ -412,10 +412,11 @@ def submit_application(request, scholarship_id):
         
         # Validate required fields
         for field in form_fields:
-            if field.required and str(field.id) not in responses:
-                return Response({
-                    'error': f'Field {field.label} is required'
-                }, status=status.HTTP_400_BAD_REQUEST)
+            if field.required:
+                if str(field.id) not in responses and str(field.id) not in files:
+                    return Response({
+                        'error': f'Field {field.label} is required'
+                    }, status=status.HTTP_400_BAD_REQUEST)
         
         # Create application
         application = ScholarshipApplication.objects.create(
