@@ -6,6 +6,7 @@ from . serializers import (
 )
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from .models import Students, Providers, Scholarship, ApplicationFormField, ScholarshipApplication
 from django.shortcuts import get_object_or_404
@@ -153,14 +154,14 @@ def get_session_status(request):
 def session_authentication_middleware(get_response):
     def middleware(request):
         # Check if request path requires authentication
-        protected_paths = ['/api/protected-endpoint']  # Add your protected endpoints
+        protected_paths = ['/protected-endpoint']  # Add your protected endpoints
         
         if request.path in protected_paths:
             is_authenticated = request.session.get('is_authenticated', False)
             user_type = request.session.get('user_type')
             
             if not is_authenticated:
-                return Response({
+                return JsonResponse({
                     'error': 'Authentication required'
                 }, status=status.HTTP_401_UNAUTHORIZED)
         
